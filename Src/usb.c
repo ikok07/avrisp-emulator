@@ -12,7 +12,7 @@ USBD_StatusTypeDef USB_Init() {
     return usb_err;
   }
 
-  // Enable interrupts only after uusbd is initialized to make sure pData is not
+  // Enable interrupts only after husbd is initialized to make sure pData is not
   // NULL
   HAL_NVIC_SetPriority(OTG_FS_IRQn, NVIC_PRIORITY_OTG_FS, 0);
   HAL_NVIC_EnableIRQ(OTG_FS_IRQn);

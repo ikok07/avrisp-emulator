@@ -1,3 +1,4 @@
+#include "app_state.h"
 #include "power.h"
 #include "stm32f4xx_hal.h"
 #include "usb.h"
@@ -24,13 +25,15 @@ int main() {
   }
 
   while (1) {
+    HAL_Delay(3000);
     char *str = "Hello World!";
-    if (CDC_Transmit_FS((uint8_t *)str, strlen(str)) != USBD_OK) {
-      while (1)
-        ;
+    if ((usb_err = CDC_Transmit_FS((uint8_t *)str, strlen(str))) != USBD_OK) {
+      (void)usb_err;
     };
-    HAL_Delay(1000);
   }
+}
 
-  return 0;
+void CDC_DataReceived_CB(uint8_t *Buf, uint32_t *Len) {
+  uint8_t test = 1;
+  (void)test;
 }

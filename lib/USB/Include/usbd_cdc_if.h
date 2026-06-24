@@ -20,8 +20,8 @@
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 
-#ifndef __USBD_CDC_IF_H__
-#define __USBD_CDC_IF_H__
+#ifndef USB_INCLUDE_USBD_CDC_IF
+#define USB_INCLUDE_USBD_CDC_IF
 
 #ifdef __cplusplus
  extern "C" {
@@ -110,6 +110,8 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 
 /* USER CODE BEGIN EXPORTED_FUNCTIONS */
 
+__weak void CDC_DataReceived_CB(uint8_t* Buf, uint32_t *Len);
+
 /* USER CODE END EXPORTED_FUNCTIONS */
 
 /**
@@ -128,5 +130,5 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 }
 #endif
 
-#endif /* __USBD_CDC_IF_H__ */
+#endif /* USB_INCLUDE_USBD_CDC_IF */
 
