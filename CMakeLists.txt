@@ -43,6 +43,7 @@ file(GLOB APP_SOURCES
     "startup_stm32f401xc.s"
     "./Src/*.c"
     "lib/HAL/Src/*.c"
+    "lib/USB/Src/*.c"
 )
 
 # Add sources to executable
@@ -57,6 +58,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     lib/CMSIS/Device/ST/STM32F4xx/Include
     lib/CMSIS/Include
     lib/HAL/Include
+    lib/USB/Include
 )
 
 # Add project symbols (macros)
