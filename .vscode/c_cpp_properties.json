@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [
+                "STM32F401xC"
+            ],
+            "cStandard": "c23",
+            "cppStandard": "c++14",
+            "compilerPath": "",
+            "compileCommands": [
+                "${workspaceFolder}/build/Debug/compile_commands.json"
+            ]
+        }
+    ],
+    "version": 4
+}

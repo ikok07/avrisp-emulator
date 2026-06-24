@@ -1,0 +1,24 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "STM32 Debug",
+            "cwd": "${workspaceFolder}",
+            "executable": "${command:cmake.launchTargetDirectory}/${command:cmake.launchTargetFilename}",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "configFiles": [
+                "./openocd.cfg"
+            ],
+            "preLaunchTask": "CMake: build",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "raw",
+            "armToolchainPath": "/opt/ST/STM32CubeCLT_1.17.0/GNU-tools-for-STM32/bin",
+            "searchDir": [
+                "/opt/ST/STM32CubeCLT_1.17.0/GNU-tools-for-STM32/arm-none-eabi/include",
+                "/opt/ST/STM32CubeCLT_1.17.0/GNU-tools-for-STM32/lib/gcc/arm-none-eabi/12.3.1/include"
+            ]
+        }
+    ]
+}
