@@ -1,21 +1,3 @@
-/**
-  ******************************************************************************
-  * @file    usbd_def.h
-  * @author  MCD Application Team
-  * @brief   General defines for the usb device library
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2015 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __USBD_DEF_H
 #define __USBD_DEF_H
@@ -26,19 +8,6 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_conf.h"
-
-/** @addtogroup STM32_USBD_DEVICE_LIBRARY
-  * @{
-  */
-
-/** @defgroup USB_DEF
-  * @brief general defines for the usb device library file
-  * @{
-  */
-
-/** @defgroup USB_DEF_Exported_Defines
-  * @{
-  */
 
 #ifndef NULL
 #define NULL                                            0U
@@ -185,14 +154,6 @@ extern "C" {
 #define USBD_DESC_ECM_BCD_LOW                           0x00U
 #define USBD_DESC_ECM_BCD_HIGH                          0x10U
 #endif /* USE_USBD_COMPOSITE */
-/**
-  * @}
-  */
-
-
-/** @defgroup USBD_DEF_Exported_TypesDefinitions
-  * @{
-  */
 
 typedef  struct  usb_setup_req
 {
@@ -488,37 +449,8 @@ __STATIC_INLINE uint16_t SWAPBYTE(uint8_t *addr)
 #endif /* __GNUC__ */
 
 
-/**
-  * @}
-  */
-
-/** @defgroup USBD_DEF_Exported_Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
-
-/** @defgroup USBD_DEF_Exported_FunctionsPrototype
-  * @{
-  */
-
-/**
-  * @}
-  */
-
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* __USBD_DEF_H */
-
-/**
-  * @}
-  */
-
-/**
-  * @}
-  */
-

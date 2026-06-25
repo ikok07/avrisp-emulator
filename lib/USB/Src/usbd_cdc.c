@@ -1,27 +1,5 @@
 /**
  ******************************************************************************
- * @file    usbd_cdc.c
- * @author  MCD Application Team
- * @brief   This file provides the high layer firmware functions to manage the
- *          following functionalities of the USB CDC Class:
- *           - Initialization and Configuration of high and low layer
- *           - Enumeration as CDC Device (and enumeration for each implemented
- * memory interface)
- *           - OUT/IN data transfer
- *           - Command IN transfer (class requests management)
- *           - Error management
- *
- ******************************************************************************
- * @attention
- *
- * Copyright (c) 2015 STMicroelectronics.
- * All rights reserved.
- *
- * This software is licensed under terms that can be found in the LICENSE file
- * in the root directory of this software component.
- * If no LICENSE file comes with this software, it is provided AS-IS.
- *
- ******************************************************************************
  *  @verbatim
  *
  *          ===================================================================
@@ -57,49 +35,9 @@
  ******************************************************************************
  */
 
-/* BSPDependencies
-- "stm32xxxxx_{eval}{discovery}{nucleo_144}.c"
-- "stm32xxxxx_{eval}{discovery}_io.c"
-EndBSPDependencies */
-
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_cdc.h"
 #include "usbd_ctlreq.h"
-
-/** @addtogroup STM32_USB_DEVICE_LIBRARY
- * @{
- */
-
-/** @defgroup USBD_CDC
- * @brief usbd core module
- * @{
- */
-
-/** @defgroup USBD_CDC_Private_TypesDefinitions
- * @{
- */
-/**
- * @}
- */
-
-/** @defgroup USBD_CDC_Private_Defines
- * @{
- */
-/**
- * @}
- */
-
-/** @defgroup USBD_CDC_Private_Macros
- * @{
- */
-
-/**
- * @}
- */
-
-/** @defgroup USBD_CDC_Private_FunctionPrototypes
- * @{
- */
 
 static uint8_t USBD_CDC_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
 static uint8_t USBD_CDC_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
@@ -825,14 +763,3 @@ uint8_t USBD_CDC_ReceivePacket(USBD_HandleTypeDef *pdev) {
 
   return (uint8_t)USBD_OK;
 }
-/**
- * @}
- */
-
-/**
- * @}
- */
-
-/**
- * @}
- */

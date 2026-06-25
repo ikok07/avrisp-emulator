@@ -1,21 +1,3 @@
-/**
-  ******************************************************************************
-  * @file    usbd_cdc.h
-  * @author  MCD Application Team
-  * @brief   header file for the usbd_cdc.c file.
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2015 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-
 #ifndef USB_INCLUDE_USBD_CDC
 #define USB_INCLUDE_USBD_CDC
 
@@ -30,19 +12,6 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include  "usbd_ioreq.h"
 
-/** @addtogroup STM32_USB_DEVICE_LIBRARY
-  * @{
-  */
-
-/** @defgroup usbd_cdc
-  * @brief This file is the Header file for usbd_cdc.c
-  * @{
-  */
-
-
-/** @defgroup usbd_cdc_Exported_Defines
-  * @{
-  */
 #ifndef CDC_IN_EP
 #define CDC_IN_EP                                   0x81U  /* EP1 for data IN */
 #endif /* CDC_IN_EP */
@@ -90,18 +59,6 @@ extern "C" {
 #define CDC_SET_CONTROL_LINE_STATE                  0x22U
 #define CDC_SEND_BREAK                              0x23U
 
-/**
-  * @}
-  */
-
-
-/** @defgroup USBD_CORE_Exported_TypesDefinitions
-  * @{
-  */
-
-/**
-  * @}
-  */
 typedef struct
 {
   uint32_t bitrate;
@@ -150,13 +107,7 @@ typedef struct
 
 extern USBD_ClassTypeDef USBD_CDC;
 #define USBD_CDC_CLASS &USBD_CDC
-/**
-  * @}
-  */
 
-/** @defgroup USB_CORE_Exported_Functions
-  * @{
-  */
 uint8_t USBD_CDC_RegisterInterface(USBD_HandleTypeDef *pdev,
                                    USBD_CDC_ItfTypeDef *fops);
 
@@ -171,23 +122,10 @@ uint8_t USBD_CDC_TransmitPacket(USBD_HandleTypeDef *pdev);
 #endif /* USE_USBD_COMPOSITE */
 uint8_t USBD_CDC_SetRxBuffer(USBD_HandleTypeDef *pdev, uint8_t *pbuff);
 uint8_t USBD_CDC_ReceivePacket(USBD_HandleTypeDef *pdev);
-/**
-  * @}
-  */
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif  /* __USB_CDC_H */
-/**
-  * @}
-  */
-
-/**
-  * @}
-  */
-
-
-
 #endif /* USB_INCLUDE_USBD_CDC */

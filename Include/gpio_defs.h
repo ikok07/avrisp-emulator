@@ -3,6 +3,9 @@
 
 #include "stm32f4xx_hal.h"
 
+#define GPIO_PORT_USB_VBUS                  GPIOA
+#define GPIO_PIN_USB_VBUS                   GPIO_PIN_9
+
 #define GPIO_PORT_USB_ID                    GPIOA
 #define GPIO_PIN_USB_ID                     GPIO_PIN_10
 

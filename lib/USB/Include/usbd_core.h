@@ -1,21 +1,3 @@
-/**
-  ******************************************************************************
-  * @file    usbd_core.h
-  * @author  MCD Application Team
-  * @brief   Header file for usbd_core.c file
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2015 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __USBD_CORE_H
 #define __USBD_CORE_H
@@ -30,57 +12,12 @@ extern "C" {
 #include "usbd_ioreq.h"
 #include "usbd_ctlreq.h"
 
-/** @addtogroup STM32_USB_DEVICE_LIBRARY
-  * @{
-  */
-
-/** @defgroup USBD_CORE
-  * @brief This file is the Header file for usbd_core.c file
-  * @{
-  */
-
-
-/** @defgroup USBD_CORE_Exported_Defines
-  * @{
-  */
 #ifndef USBD_DEBUG_LEVEL
 #define USBD_DEBUG_LEVEL           0U
 #endif /* USBD_DEBUG_LEVEL */
-/**
-  * @}
-  */
 
-
-/** @defgroup USBD_CORE_Exported_TypesDefinitions
-  * @{
-  */
-
-
-/**
-  * @}
-  */
-
-
-
-/** @defgroup USBD_CORE_Exported_Macros
-  * @{
-  */
-
-/**
-  * @}
-  */
-
-/** @defgroup USBD_CORE_Exported_Variables
-  * @{
-  */
 #define USBD_SOF          USBD_LL_SOF
-/**
-  * @}
-  */
 
-/** @defgroup USBD_CORE_Exported_FunctionsPrototype
-  * @{
-  */
 USBD_StatusTypeDef USBD_Init(USBD_HandleTypeDef *pdev, USBD_DescriptorsTypeDef *pdesc, uint8_t id);
 USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev);
 USBD_StatusTypeDef USBD_Start(USBD_HandleTypeDef *pdev);
@@ -154,22 +91,9 @@ void  USBD_LL_Delay(uint32_t Delay);
 void *USBD_GetEpDesc(uint8_t *pConfDesc, uint8_t EpAddr);
 USBD_DescHeaderTypeDef *USBD_GetNextDesc(uint8_t *pbuf, uint16_t *ptr);
 
-/**
-  * @}
-  */
-
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* __USBD_CORE_H */
-
-/**
-  * @}
-  */
-
-/**
-  * @}
-  */
-
 
