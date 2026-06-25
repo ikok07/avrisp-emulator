@@ -44,6 +44,7 @@ file(GLOB APP_SOURCES
     "./Src/*.c"
     "lib/HAL/Src/*.c"
     "lib/USB/Src/*.c"
+    "lib/ring_buffer/Src/*.c"
 )
 
 # Add sources to executable
@@ -59,6 +60,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     lib/CMSIS/Include
     lib/HAL/Include
     lib/USB/Include
+    lib/ring_buffer/Include
 )
 
 # Add project symbols (macros)

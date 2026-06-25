@@ -1,15 +1,16 @@
 #include "usb.h"
 #include "app_state.h"
 #include "nvic_defs.h"
+#include "ringbuf.h"
 #include "stk500v2.h"
+#include "stm32f4xx_hal.h"
 #include "usbd_cdc.h"
 #include "usbd_cdc_cb.h"
 #include "usbd_cdc_if.h"
 #include "usbd_core.h"
+#include "usbd_def.h"
 #include "usbd_desc.h"
 #include <stdint.h>
-
-static USB_MessageStatusTypeDef parse_cmd(uint8_t *Buf, uint32_t *Len);
 
 USBD_StatusTypeDef USB_Init() {
   USBD_StatusTypeDef usb_err;
@@ -36,10 +37,37 @@ USBD_StatusTypeDef USB_Init() {
     return usb_err;
   }
 
-  // Link separate parsers to the USB handle
-  gAppState.husb.Parsers[USB_MSG_STK500V2] = &STK500_Parser;
+  // Initialize ring buffer
+  gAppState.husb.RxBuffer = ringbuf_new(USB_RX_RING_BUFFER_SIZE);
+  if (gAppState.husb.RxBuffer == 0) {
+    // TODO: Add some error handling...
+    return USBD_FAIL;
+  }
 
   return usb_err;
+}
+
+USBD_StatusTypeDef USB_SendData(uint8_t *Buf, uint16_t Len) {
+  return CDC_Transmit_FS(Buf, Len);
+}
+
+void USB_MessageHandler() {
+  USB_CommandStatusTypeDef status = USB_COMMAND_OK;
+  STK500V2_CommandTypeDef cmd;
+  while (1) {
+    HAL_Delay(100);
+    // Check whether there is USB connection
+    if (gAppState.husb.husbd.dev_state != USBD_STATE_CONFIGURED)
+      continue;
+
+    status = STK500V2_ParseCmd(gAppState.husb.RxBuffer, &cmd);
+    if (status == USB_COMMAND_OK) {
+      status = STK500V2_HandleCmd(&cmd);
+      if (status != USB_COMMAND_OK) {
+        // TODO: Add some error handling...
+      }
+    }
+  }
 }
 
 void CDC_CB_Connected() {
@@ -52,30 +80,8 @@ void CDC_CB_Disconnected() {
 }
 
 void CDC_CB_DataReceived(uint8_t *Buf, uint32_t *Len) {
-  if (*Len <= 0)
+  if (*Len == 0)
     return;
 
-  USB_MessageStatusTypeDef parse_status;
-
-  parse_status = parse_cmd(Buf, Len);
-
-  switch (parse_status) {
-  case USB_MESSAGE_OK:
-    break;
-  case USB_MESSAGE_PARSE_ERR:
-    // TODO: Add some error handling...
-    break;
-  default:
-    break;
-  }
-}
-
-USB_MessageStatusTypeDef parse_cmd(uint8_t *Buf, uint32_t *Len) {
-  switch (Buf[0]) {
-  case STK500V2_START_BYTE:
-    return gAppState.husb.Parsers[USB_MSG_STK500V2]->ParseCmd(Buf, Len);
-  default:
-    break;
-  }
-  return USB_MESSAGE_OK;
+  ringbuf_memcpy_into(gAppState.husb.RxBuffer, Buf, *Len);
 }

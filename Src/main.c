@@ -24,7 +24,6 @@ int main() {
       ;
   }
 
-  while (1) {
-    HAL_Delay(100);
-  }
+  // Wait and execute usb serial commands
+  USB_MessageHandler();
 }
