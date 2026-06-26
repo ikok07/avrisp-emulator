@@ -1,5 +1,6 @@
 #include "app_state.h"
 #include "power.h"
+#include "stm32f401xc.h"
 #include "stm32f4xx_hal.h"
 #include "usb.h"
 #include "usbd_cdc_if.h"

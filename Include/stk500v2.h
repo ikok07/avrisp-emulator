@@ -8,7 +8,10 @@
 #define MIN_COMMAND_SIZE                (5)
 #define MAX_COMMAND_SIZE                (MAX_BODY_SIZE + 6)
 #define DEBUGGER_SIGNATURE              "AVRISP_2"
-
+#define HW_VERSION                      0x01
+#define SW_MAJOR_VERSION                0x01
+#define SW_MINOR_VERSION                0x01
+#define VOLTAGE_TARGET                  50                  // Hard-coded 5V for now
 
 #define STK500V2_START_BYTE             (0x1B)
 #define STK500V2_TOKEN                  (0x0E)
@@ -87,15 +90,17 @@
 /* ISP-specific status (returned in ISP response bytes) */
 #define STATUS_ISP_READY                (0x00) /* ISP interface ready */
 
-/* ── Parameters ─────────────────────────────────────────────────────────── */
-#define PARAM_HW_VER                    (0x90)
-#define PARAM_SW_MAJOR                  (0x91)
-#define PARAM_SW_MINOR                  (0x92)
-#define PARAM_VTARGET                   (0x94)
-#define PARAM_CONTROLLER_INIT           (0x9F)
-#define PARAM_STATUS_TGT_CONN           (0xA1)
-#define PARAM_DISCHARGEDELAY            (0xA4)
+/* ── Parameters (AVRISP mkII) ───────────────────────────────────────────── */
+#define PARAM_HW_VER                    (0x90) /* hardware version */
+#define PARAM_SW_MAJOR                  (0x91) /* firmware major version */
+#define PARAM_SW_MINOR                  (0x92) /* firmware minor version */
+#define PARAM_VTARGET                   (0x94) /* target supply voltage (units of 10 mV) */
+#define PARAM_SCK_DURATION              (0x98) /* SCK period index — used to configure SPI clock speed */
+#define PARAMS_COUNT                    7
 
+/* ── ISP Clock Constants ───────────────────────────────────────────── */
+#define T_AVRISP                        271.27e-9 
+#define B_AVRISP                        12.0
 
 typedef struct {
     uint8_t SequenceNumber;
@@ -104,6 +109,13 @@ typedef struct {
     uint8_t *MessageBody;
     uint8_t Checksum;
 } STK500V2_CommandTypeDef;
+
+typedef struct {
+    uint8_t ParamID;
+    uint8_t Value;
+} STK500V2_ParamPairTypeDef;
+
+extern STK500V2_ParamPairTypeDef Stk500V2_StaticParams[PARAMS_COUNT];
 
 USB_CommandStatusTypeDef STK500V2_HandleCmd(STK500V2_CommandTypeDef *Stk500Command);
 USB_CommandStatusTypeDef STK500V2_ParseCmd(ringbuf_t RingBuffer, STK500V2_CommandTypeDef *Stk500Command);

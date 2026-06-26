@@ -28,8 +28,8 @@
   #pragma clang system_header   /* treat file as system include file */
 #endif
 
-#ifndef __CORE_CM4_H_GENERIC
-#define __CORE_CM4_H_GENERIC
+#ifndef CMSIS_INCLUDE_CORE_CM4
+#define CMSIS_INCLUDE_CORE_CM4
 
 #include <stdint.h>
 
@@ -166,7 +166,7 @@
 }
 #endif
 
-#endif /* __CORE_CM4_H_GENERIC */
+#endif /* CMSIS_INCLUDE_CORE_CM4 */
 
 #ifndef __CMSIS_GENERIC
 
