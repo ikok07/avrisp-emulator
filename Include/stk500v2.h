@@ -105,6 +105,27 @@ typedef struct __packed {
     uint8_t RetAddr;                    // Return address - indicates after which of the transmitted bytes on the SPI interface to store the return byte
     uint8_t Commands[4];                // Command bytes to be transmit
 } STK500V2_ReadFuseBodyTypeDef;
+
+typedef struct {
+    uint8_t PageModeEnabled;
+    uint8_t TimedDelayWordMode;
+    uint8_t ValuePollingWordMode;
+    uint8_t RdyBsyPollingWordMode;
+    uint8_t TimedDelayPageMode;
+    uint8_t ValuePollingPageMode;
+    uint8_t RdyBsyPollingPageMode;
+} STK500V2_CmdProgramFlashModeTypeDef;
+typedef struct {
+    uint8_t CommandID;
+    uint16_t NumBytes;                                              // Total number of bytes to program
+    STK500V2_CmdProgramFlashModeTypeDef Mode;                       // Mode byte
+    uint8_t Delay;                                                  // Delay, used for different types of programming termination, according to mode byte 
+    uint8_t CmdLoadProgramMemory;
+    uint8_t CmdWriteProgramMemory;
+    uint8_t CmdReadProgramMemory;
+    uint8_t PollValues[2];
+    uint8_t *Data;
+} STK500V2_CmdProgramFLASHBodyTypeDef;
 typedef struct {
     uint8_t CommandID;
     uint8_t NumTx;                      // Number of bytes to transmit

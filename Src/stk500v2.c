@@ -17,7 +17,9 @@
 #define MIN_COMMAND_SIZE (5)
 #define MAX_COMMAND_SIZE (MAX_BODY_SIZE + 6)
 #define DEFAULT_CLK_DURATION (0xFF)
-#define STK500_ADDRESS_LEN (4)
+#define AVR_WORD_SIZE_BYTES (2)
+
+#define INSTR_LOAD_EXT_ADDRESS_BYTE(Byte) {0x4D, 0x00, Byte, 0x00}
 
 /* ------ Command handlers ------ */
 static uint8_t enter_prog_mode(STK500V2_CommandTypeDef *Stk500Command);
@@ -29,6 +31,8 @@ static uint8_t read_fuse(STK500V2_CommandTypeDef *Stk500Command,
                          uint8_t *RxData);
 static uint8_t write_fuse(STK500V2_CommandTypeDef *Stk500Command);
 
+static uint8_t program_flash(STK500V2_CommandTypeDef *Stk500Command);
+
 static uint8_t spi_multi(STK500V2_CommandTypeDef *Stk500Command,
                          uint8_t *RxData, uint8_t *RxLen);
 
@@ -37,6 +41,12 @@ static USB_CommandStatusTypeDef
 send_response(STK500V2_CommandTypeDef *Stk500Command, uint8_t Status,
               uint8_t *Data, size_t Len);
 static uint8_t poll_rdy_bsy(uint16_t TimeoutMs);
+
+// TODO: Research eeprom support which has 2 poll values
+static uint8_t poll_value(uint8_t ReadCommand, uint8_t PollValue,
+                          uint16_t TimeoutMs);
+
+static uint8_t send_load_ext_addr_instr();
 
 static uint8_t generate_checksum(uint8_t *Buffer, uint16_t Len);
 static uint8_t validate_checksum(uint8_t *Buffer, uint16_t Len);
@@ -52,10 +62,8 @@ static void avr_disable_reset();
 
 static uint8_t gCommandBuffer[MIN_COMMAND_SIZE];
 static uint8_t gCurrentSckDuration = DEFAULT_CLK_DURATION;
-static uint8_t gStk500Address[STK500_ADDRESS_LEN];
-
-// TODO: To be implemented. (Look at 5.1.5 CMD_LOAD_ADDRESS)
-static uint8_t gLoadExtAddrEnabled = 0;
+static uint32_t gStk500Address = 0x00;
+static uint8_t gStk500ExtAddress = 0x00;
 
 STK500V2_ParamPairTypeDef Stk500V2_StaticParams[PARAMS_COUNT] = {
     {.ParamID = PARAM_HW_VER, .Value = HW_VERSION},
@@ -132,13 +140,29 @@ STK500V2_HandleCmd(STK500V2_CommandTypeDef *Stk500Command) {
 
   } else if (cmd_id == CMD_LOAD_ADDRESS) {
 
-    memcpy(gStk500Address, Stk500Command->MessageBody + 1, STK500_ADDRESS_LEN);
+    gStk500Address = ((uint32_t)Stk500Command->MessageBody[1] << 24) |
+                     ((uint32_t)Stk500Command->MessageBody[2] << 16) |
+                     ((uint32_t)Stk500Command->MessageBody[3] << 8) |
+                     ((uint32_t)Stk500Command->MessageBody[4]);
+
     // Handle memory over 65 KBytes
-    gLoadExtAddrEnabled = (gStk500Address[0] & (1 << 7)) > 0;
-    gStk500Address[0] &= ~0x80; // Clear indicator bit
+    if ((gStk500Address & (1UL << 31)) > 0) {
+      gStk500Address &= ~(1UL << 31); // Remove the extended address flag
+      gStk500ExtAddress = gStk500Address >> 16; // Extract the extended address
+    }
 
     status = send_response(Stk500Command, STATUS_CMD_OK, NULL, 0);
 
+  } else if (cmd_id == CMD_PROGRAM_FLASH_ISP) {
+    uint8_t rc = program_flash(Stk500Command);
+    uint8_t resp_status = rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK;
+
+    if (rc == 2)
+      resp_status = STATUS_CMD_TOUT;
+    if (rc == 3)
+      resp_status = STATUS_RDY_BSY_TOUT;
+
+    status = send_response(Stk500Command, resp_status, NULL, 0);
   } else if (cmd_id == CMD_SPI_MULTI) {
 
     uint8_t rx_data[255];
@@ -292,7 +316,7 @@ uint8_t read_fuse(STK500V2_CommandTypeDef *Stk500Command, uint8_t *RxData) {
   }
 
   // There is only one fuse byte
-  *RxData = rx_data[body.RetAddr];
+  *RxData = rx_data[body.RetAddr - 1];
 
   return 0;
 }
@@ -305,6 +329,89 @@ uint8_t write_fuse(STK500V2_CommandTypeDef *Stk500Command) {
     return 1;
   }
   return 0;
+}
+
+uint8_t program_flash(STK500V2_CommandTypeDef *Stk500Command) {
+  STK500V2_CmdProgramFLASHBodyTypeDef body;
+  body.CommandID = Stk500Command->MessageBody[0];
+  body.NumBytes =
+      (Stk500Command->MessageBody[1] << 8) | Stk500Command->MessageBody[2];
+
+  body.Mode = (STK500V2_CmdProgramFlashModeTypeDef){
+      .PageModeEnabled = (Stk500Command->MessageBody[3] & (1 << 0)) > 0,
+      .TimedDelayWordMode = (Stk500Command->MessageBody[3] & (1 << 1)) > 0,
+      .ValuePollingWordMode = (Stk500Command->MessageBody[3] & (1 << 2)) > 0,
+      .RdyBsyPollingWordMode = (Stk500Command->MessageBody[3] & (1 << 3)) > 0,
+      .TimedDelayPageMode = (Stk500Command->MessageBody[3] & (1 << 4)) > 0,
+      .ValuePollingPageMode = (Stk500Command->MessageBody[3] & (1 << 5)) > 0,
+      .RdyBsyPollingPageMode = (Stk500Command->MessageBody[3] & (1 << 6)) > 0,
+  };
+
+  body.Delay = Stk500Command->MessageBody[4];
+  body.CmdLoadProgramMemory = Stk500Command->MessageBody[5];
+  body.CmdWriteProgramMemory = Stk500Command->MessageBody[6];
+  body.CmdReadProgramMemory = Stk500Command->MessageBody[7];
+  memcpy(body.PollValues, &Stk500Command->MessageBody[8], 2);
+  body.Data = &(Stk500Command->MessageBody[10]);
+
+  if ((body.NumBytes & 1) != 0) {
+    // Number of bytes should be even (each word has 2 bytes)
+    return 1;
+  }
+
+  // If more than 128KB of FLASH, send extended address byte
+  if (gStk500ExtAddress != 0x00) {
+    if (send_load_ext_addr_instr() != 0) {
+      return 1;
+    }
+  }
+
+  HAL_StatusTypeDef hal_err;
+  if (body.Mode.PageModeEnabled) {
+    // Page mode
+  } else {
+    // Word mode
+    for (uint16_t i = 0; i < body.NumBytes; i += 2) {
+      uint8_t data_low = body.Data[i];
+      uint8_t data_high = body.Data[i + 1];
+
+      uint8_t data[4] = {
+          body.CmdWriteProgramMemory,   // Use the provided LOW byte command
+          (gStk500Address >> 8) & 0xFF, // LOW Address byte
+          gStk500Address & 0xFF,        // HIGH Address byte
+          data_low,
+      };
+      // Transmit LOW
+      if ((hal_err = HAL_SPI_Transmit(&gAppState.hspi1, data,
+                                      AVR_WORD_SIZE_BYTES, 100)) != HAL_OK) {
+        return 1;
+      }
+
+      // Transmit HIGH
+      data[0] =
+          body.CmdWriteProgramMemory | 0x08; // Convert to HIGH byte command
+      data[1] = data_high;
+      if ((hal_err = HAL_SPI_Transmit(&gAppState.hspi1, data,
+                                      AVR_WORD_SIZE_BYTES, 100)) != HAL_OK) {
+        return 1;
+      }
+
+      if (body.Mode.TimedDelayWordMode) {
+        HAL_Delay(body.Delay);
+      } else if (body.Mode.RdyBsyPollingWordMode) {
+        if (poll_rdy_bsy(body.Delay) != 0)
+          return 2;
+      } else if (body.Mode.ValuePollingWordMode) {
+        // FLASH programming has only one poll value
+        if (poll_value(body.CmdReadProgramMemory, body.PollValues[0],
+                       body.Delay) != 0)
+          return 2;
+      }
+
+      // Increment word address
+      gStk500Address++;
+    }
+  }
 }
 
 uint8_t spi_multi(STK500V2_CommandTypeDef *Stk500Command, uint8_t *RxData,
@@ -393,6 +500,42 @@ uint8_t poll_rdy_bsy(uint16_t TimeoutMs) {
   }
   // Timeout
   return 1;
+}
+
+uint8_t poll_value(uint8_t ReadCommand, uint8_t PollValue, uint16_t TimeoutMs) {
+  HAL_StatusTypeDef hal_err;
+  uint8_t data[] = {
+      ReadCommand,
+      (gStk500Address >> 8) & 0xFF,
+      gStk500Address & 0xFF,
+      0x00, // Add dummy byte on which the poll value will be received
+  };
+
+  uint8_t rx_buf[sizeof(data)];
+
+  uint32_t now = HAL_GetTick();
+  while (HAL_GetTick() - now < TimeoutMs) {
+    if ((hal_err = HAL_SPI_TransmitReceive(&gAppState.hspi1, data, rx_buf,
+                                           sizeof(data), 100)) != HAL_OK) {
+      return 1;
+    }
+
+    // Check whether the data is written
+    if (rx_buf[3] == PollValue)
+      return 0;
+  }
+
+  return 2;
+}
+
+uint8_t send_load_ext_addr_instr() {
+  HAL_StatusTypeDef hal_err;
+  uint8_t data[] = INSTR_LOAD_EXT_ADDRESS_BYTE(gStk500ExtAddress);
+  if ((hal_err = HAL_SPI_Transmit(&gAppState.hspi1, data, sizeof(data), 100)) !=
+      HAL_OK) {
+    return 1;
+  }
+  return 0;
 }
 
 uint8_t generate_checksum(uint8_t *Buffer, uint16_t Len) {
