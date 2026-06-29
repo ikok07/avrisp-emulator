@@ -31,6 +31,8 @@ static uint8_t read_fuse(STK500V2_CommandTypeDef *Stk500Command,
                          uint8_t *RxData);
 static uint8_t write_fuse(STK500V2_CommandTypeDef *Stk500Command);
 
+static uint8_t read_flash(STK500V2_CommandTypeDef *Stk500Command,
+                          uint8_t *Data);
 static uint8_t program_flash(STK500V2_CommandTypeDef *Stk500Command);
 
 static uint8_t spi_multi(STK500V2_CommandTypeDef *Stk500Command,
@@ -163,6 +165,16 @@ STK500V2_HandleCmd(STK500V2_CommandTypeDef *Stk500Command) {
       resp_status = STATUS_RDY_BSY_TOUT;
 
     status = send_response(Stk500Command, resp_status, NULL, 0);
+  } else if (cmd_id == CMD_READ_FLASH_ISP) {
+    uint16_t data_len =
+        (Stk500Command->MessageBody[1] << 8) | Stk500Command->MessageBody[2];
+    uint8_t data[data_len + 1];
+    uint8_t rc = read_flash(Stk500Command, data);
+    // Protocol requires a second status byte which is always OK.
+    data[data_len] = STATUS_CMD_OK;
+    status =
+        send_response(Stk500Command, rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK,
+                      data, data_len);
   } else if (cmd_id == CMD_SPI_MULTI) {
 
     uint8_t rx_data[255];
@@ -322,7 +334,7 @@ uint8_t read_fuse(STK500V2_CommandTypeDef *Stk500Command, uint8_t *RxData) {
 }
 
 uint8_t write_fuse(STK500V2_CommandTypeDef *Stk500Command) {
-  HAL_StatusTypeDef hal_err;
+  HAL_StatusTypeDef hal_err = HAL_OK;
   if ((hal_err == HAL_SPI_Transmit(&gAppState.hspi1,
                                    Stk500Command->MessageBody + 1, 4, 100)) !=
       HAL_OK) {
@@ -331,11 +343,73 @@ uint8_t write_fuse(STK500V2_CommandTypeDef *Stk500Command) {
   return 0;
 }
 
+uint8_t read_flash(STK500V2_CommandTypeDef *Stk500Command, uint8_t *Data) {
+  HAL_StatusTypeDef hal_err = HAL_OK;
+  uint16_t num_bytes =
+      (Stk500Command->MessageBody[1] << 8) | Stk500Command->MessageBody[2];
+  uint8_t cmd_read_low = Stk500Command->MessageBody[3];
+  uint8_t cmd_read_high = Stk500Command->MessageBody[3] | 0x08;
+
+  if ((num_bytes & 1) != 0) {
+    // Number of bytes should be even (each word has 2 bytes)
+    return 1;
+  }
+
+  // If more than 128KB of FLASH, send extended address byte
+  if (gStk500ExtAddress != 0x00) {
+    if (send_load_ext_addr_instr() != 0) {
+      return 1;
+    }
+  }
+
+  if (num_bytes > MAX_COMMAND_SIZE)
+    return 1;
+
+  uint8_t rx_buf[num_bytes];
+  uint16_t rx_buf_idx = 0;
+  for (uint16_t i = 0; i < num_bytes; i += 2) {
+    uint8_t tx[4] = {
+        cmd_read_low,
+        (gStk500Address >> 8) & 0xFF, // HIGH Address byte
+        gStk500Address & 0xFF,        // LOW Address byte
+        0x00,
+    };
+    uint8_t rx[4];
+
+    // Get LOW byte
+    if ((hal_err = HAL_SPI_TransmitReceive(&gAppState.hspi1, tx, rx, sizeof(tx),
+                                           100)) != HAL_OK) {
+      return 1;
+    }
+
+    rx_buf[rx_buf_idx++] = rx[3];
+
+    // Get HIGH byte
+    tx[0] = cmd_read_high;
+    if ((hal_err = HAL_SPI_TransmitReceive(&gAppState.hspi1, tx, rx, sizeof(tx),
+                                           100)) != HAL_OK) {
+      return 1;
+    }
+
+    // Increment word address
+    gStk500Address++;
+
+    // Copy received byte from flash
+    rx_buf[rx_buf_idx++] = rx[3];
+  }
+
+  memcpy(Data, rx_buf, num_bytes);
+  return 0;
+}
+
 uint8_t program_flash(STK500V2_CommandTypeDef *Stk500Command) {
   STK500V2_CmdProgramFLASHBodyTypeDef body;
   body.CommandID = Stk500Command->MessageBody[0];
   body.NumBytes =
       (Stk500Command->MessageBody[1] << 8) | Stk500Command->MessageBody[2];
+
+  if (body.NumBytes > MAX_COMMAND_SIZE)
+    return 1;
 
   body.Mode = (STK500V2_CmdProgramFlashModeTypeDef){
       .PageModeEnabled = (Stk500Command->MessageBody[3] & (1 << 0)) > 0,
