@@ -13,12 +13,22 @@
 #include <stdint.h>
 #include <string.h>
 
+#define MAX_BODY_SIZE (275)
+#define MIN_COMMAND_SIZE (5)
+#define MAX_COMMAND_SIZE (MAX_BODY_SIZE + 6)
+#define DEFAULT_CLK_DURATION (0xFF)
+#define STK500_ADDRESS_LEN (4)
+
 /* ------ Command handlers ------ */
 static uint8_t enter_prog_mode(STK500V2_CommandTypeDef *Stk500Command);
 static void leave_prog_mode(STK500V2_CommandTypeDef *Stk500Command);
+
 static uint8_t chip_erase(STK500V2_CommandTypeDef *Stk500Command);
+
 static uint8_t read_fuse(STK500V2_CommandTypeDef *Stk500Command,
                          uint8_t *RxData);
+static uint8_t write_fuse(STK500V2_CommandTypeDef *Stk500Command);
+
 static uint8_t spi_multi(STK500V2_CommandTypeDef *Stk500Command,
                          uint8_t *RxData, uint8_t *RxLen);
 
@@ -41,7 +51,11 @@ static void avr_enable_reset();
 static void avr_disable_reset();
 
 static uint8_t gCommandBuffer[MIN_COMMAND_SIZE];
-static uint8_t gCurrentSckDuration = 0xFF;
+static uint8_t gCurrentSckDuration = DEFAULT_CLK_DURATION;
+static uint8_t gStk500Address[STK500_ADDRESS_LEN];
+
+// TODO: To be implemented. (Look at 5.1.5 CMD_LOAD_ADDRESS)
+static uint8_t gLoadExtAddrEnabled = 0;
 
 STK500V2_ParamPairTypeDef Stk500V2_StaticParams[PARAMS_COUNT] = {
     {.ParamID = PARAM_HW_VER, .Value = HW_VERSION},
@@ -78,26 +92,55 @@ STK500V2_HandleCmd(STK500V2_CommandTypeDef *Stk500Command) {
     uint8_t rc = set_parameter_value(param_id, param_value);
     status = send_response(Stk500Command,
                            rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK, NULL, 0);
+
   } else if (cmd_id == CMD_ENTER_PROGMODE_ISP) {
+
     uint8_t rc = enter_prog_mode(Stk500Command);
     uint8_t resp_status = rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK;
     if (rc == 2)
       resp_status = STATUS_CMD_TOUT;
     status = send_response(Stk500Command, resp_status, NULL, 0);
+
   } else if (cmd_id == CMD_LEAVE_PROGMODE_ISP) {
+
     leave_prog_mode(Stk500Command);
     status = send_response(Stk500Command, STATUS_CMD_OK, NULL, 0);
-  } else if (cmd_id == CMD_READ_FUSE_ISP) {
+
+  } else if (cmd_id == CMD_READ_FUSE_ISP || cmd_id == CMD_READ_SIGNATURE_ISP) {
+
     uint8_t fuse_byte;
     uint8_t rc = read_fuse(Stk500Command, &fuse_byte);
+    // Protocol requires a second status byte which is always OK.
+    uint8_t body[] = {fuse_byte, STATUS_CMD_OK};
     status =
         send_response(Stk500Command, rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK,
-                      &fuse_byte, rc > 0 ? 0 : 1);
+                      body, rc > 0 ? 1 : 2);
+
   } else if (cmd_id == CMD_CHIP_ERASE_ISP) {
+
     uint8_t rc = chip_erase(Stk500Command);
     status = send_response(Stk500Command,
                            rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK, NULL, 0);
+
+  } else if (cmd_id == CMD_PROGRAM_FUSE_ISP || cmd_id == CMD_PROGRAM_LOCK_ISP) {
+
+    uint8_t rc = write_fuse(Stk500Command);
+    // Protocol requires a second status byte which is always OK.
+    uint8_t body[] = {STATUS_CMD_OK};
+    status = send_response(Stk500Command,
+                           rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK, body, 1);
+
+  } else if (cmd_id == CMD_LOAD_ADDRESS) {
+
+    memcpy(gStk500Address, Stk500Command->MessageBody + 1, STK500_ADDRESS_LEN);
+    // Handle memory over 65 KBytes
+    gLoadExtAddrEnabled = (gStk500Address[0] & (1 << 7)) > 0;
+    gStk500Address[0] &= ~0x80; // Clear indicator bit
+
+    status = send_response(Stk500Command, STATUS_CMD_OK, NULL, 0);
+
   } else if (cmd_id == CMD_SPI_MULTI) {
+
     uint8_t rx_data[255];
     uint8_t rx_len = 0;
     uint8_t rc = spi_multi(Stk500Command, rx_data, &rx_len);
@@ -251,6 +294,16 @@ uint8_t read_fuse(STK500V2_CommandTypeDef *Stk500Command, uint8_t *RxData) {
   // There is only one fuse byte
   *RxData = rx_data[body.RetAddr];
 
+  return 0;
+}
+
+uint8_t write_fuse(STK500V2_CommandTypeDef *Stk500Command) {
+  HAL_StatusTypeDef hal_err;
+  if ((hal_err == HAL_SPI_Transmit(&gAppState.hspi1,
+                                   Stk500Command->MessageBody + 1, 4, 100)) !=
+      HAL_OK) {
+    return 1;
+  }
   return 0;
 }
 

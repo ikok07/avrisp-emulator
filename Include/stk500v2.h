@@ -5,13 +5,11 @@
 #include <stdint.h>
 #include <sys/cdefs.h>
 
-#define MAX_BODY_SIZE                   (275)
-#define MIN_COMMAND_SIZE                (5)
-#define MAX_COMMAND_SIZE                (MAX_BODY_SIZE + 6)
 #define DEBUGGER_SIGNATURE              "AVRISP_2"
 #define HW_VERSION                      0x01
 #define SW_MAJOR_VERSION                0x00
 #define SW_MINOR_VERSION                0x01
+// TODO: Read actual voltage via ADC
 #define VOLTAGE_TARGET                  50                  // Hard-coded 5V for now
 
 #define STK500V2_START_BYTE             (0x1B)
