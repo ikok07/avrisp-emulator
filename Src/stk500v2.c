@@ -62,7 +62,7 @@ static uint32_t get_freq_from_sck_period_value(uint8_t Value);
 static void avr_enable_reset();
 static void avr_disable_reset();
 
-static uint8_t gCommandBuffer[MIN_COMMAND_SIZE];
+static uint8_t gCommandBuffer[MAX_COMMAND_SIZE];
 static uint8_t gCurrentSckDuration = DEFAULT_CLK_DURATION;
 static uint32_t gStk500Address = 0x00;
 static uint8_t gStk500ExtAddress = 0x00;
@@ -150,7 +150,8 @@ STK500V2_HandleCmd(STK500V2_CommandTypeDef *Stk500Command) {
     // Handle memory over 65 KBytes
     if ((gStk500Address & (1UL << 31)) > 0) {
       gStk500Address &= ~(1UL << 31); // Remove the extended address flag
-      gStk500ExtAddress = gStk500Address >> 16; // Extract the extended address
+      gStk500ExtAddress =
+          (gStk500Address >> 16) & 0xFF; // Extract the extended address
     }
 
     status = send_response(Stk500Command, STATUS_CMD_OK, NULL, 0);
