@@ -16,6 +16,9 @@
 /* ------ Command handlers ------ */
 static uint8_t enter_prog_mode(STK500V2_CommandTypeDef *Stk500Command);
 static void leave_prog_mode(STK500V2_CommandTypeDef *Stk500Command);
+static uint8_t chip_erase(STK500V2_CommandTypeDef *Stk500Command);
+static uint8_t read_fuse(STK500V2_CommandTypeDef *Stk500Command,
+                         uint8_t *RxData);
 static uint8_t spi_multi(STK500V2_CommandTypeDef *Stk500Command,
                          uint8_t *RxData, uint8_t *RxLen);
 
@@ -23,6 +26,7 @@ static uint8_t spi_multi(STK500V2_CommandTypeDef *Stk500Command,
 static USB_CommandStatusTypeDef
 send_response(STK500V2_CommandTypeDef *Stk500Command, uint8_t Status,
               uint8_t *Data, size_t Len);
+static uint8_t poll_rdy_bsy(uint16_t TimeoutMs);
 
 static uint8_t generate_checksum(uint8_t *Buffer, uint16_t Len);
 static uint8_t validate_checksum(uint8_t *Buffer, uint16_t Len);
@@ -83,6 +87,16 @@ STK500V2_HandleCmd(STK500V2_CommandTypeDef *Stk500Command) {
   } else if (cmd_id == CMD_LEAVE_PROGMODE_ISP) {
     leave_prog_mode(Stk500Command);
     status = send_response(Stk500Command, STATUS_CMD_OK, NULL, 0);
+  } else if (cmd_id == CMD_READ_FUSE_ISP) {
+    uint8_t fuse_byte;
+    uint8_t rc = read_fuse(Stk500Command, &fuse_byte);
+    status =
+        send_response(Stk500Command, rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK,
+                      &fuse_byte, rc > 0 ? 0 : 1);
+  } else if (cmd_id == CMD_CHIP_ERASE_ISP) {
+    uint8_t rc = chip_erase(Stk500Command);
+    status = send_response(Stk500Command,
+                           rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK, NULL, 0);
   } else if (cmd_id == CMD_SPI_MULTI) {
     uint8_t rx_data[255];
     uint8_t rx_len = 0;
@@ -201,6 +215,79 @@ void leave_prog_mode(STK500V2_CommandTypeDef *Stk500Command) {
   HAL_Delay(post_delay);
 }
 
+uint8_t chip_erase(STK500V2_CommandTypeDef *Stk500Command) {
+  HAL_StatusTypeDef hal_err;
+  STK500V2_ChipEraseBodyTypeDef body;
+  memcpy(&body, Stk500Command->MessageBody, Stk500Command->MessageSize);
+
+  if ((hal_err = HAL_SPI_Transmit(&gAppState.hspi1, body.Commands,
+                                  sizeof(body.Commands), 100)) != HAL_OK) {
+    return 1;
+  }
+
+  if (body.PollMethod == 1) {
+    // Poll RDY/BSY command
+    return poll_rdy_bsy(body.EraseDelay);
+  }
+
+  // Blindly wait for the worst case scenario
+  HAL_Delay(body.EraseDelay);
+  return 0;
+}
+
+uint8_t read_fuse(STK500V2_CommandTypeDef *Stk500Command, uint8_t *RxData) {
+  HAL_StatusTypeDef hal_err;
+  STK500V2_ReadFuseBodyTypeDef body;
+  memcpy(&body, Stk500Command->MessageBody, sizeof(body));
+
+  uint8_t rx_data[sizeof(body.Commands)];
+
+  if ((hal_err =
+           HAL_SPI_TransmitReceive(&gAppState.hspi1, body.Commands, rx_data,
+                                   sizeof(body.Commands), 100)) != HAL_OK) {
+    return 1;
+  }
+
+  // There is only one fuse byte
+  *RxData = rx_data[body.RetAddr];
+
+  return 0;
+}
+
+uint8_t spi_multi(STK500V2_CommandTypeDef *Stk500Command, uint8_t *RxData,
+                  uint8_t *RxLen) {
+  STK500V2_CmdSPIMultiBodyTypeDef body;
+  body.CommandID = Stk500Command->MessageBody[0];
+  body.NumTx = Stk500Command->MessageBody[1];
+  body.NumRx = Stk500Command->MessageBody[2];
+  body.RxStartAddr = Stk500Command->MessageBody[3];
+  body.TxData = &(Stk500Command->MessageBody[4]);
+
+  uint8_t rx_data[255];
+
+  // Clear RxData buffer
+  memset(RxData, 0, 255);
+
+  HAL_StatusTypeDef hal_err;
+  if ((hal_err = HAL_SPI_TransmitReceive(&gAppState.hspi1, body.TxData, rx_data,
+                                         body.NumTx, 100)) != HAL_OK) {
+    return 1;
+  }
+
+  if (body.NumRx > 0) {
+    uint16_t end = (uint16_t)body.RxStartAddr + (uint16_t)body.NumRx;
+    if (end > body.NumTx) {
+      // Received bytes count should never exceed tx bytes count
+      return 1;
+    }
+    memcpy(RxData, rx_data + body.RxStartAddr, body.NumRx);
+  }
+
+  *RxLen = body.NumRx;
+
+  return 0;
+}
+
 USB_CommandStatusTypeDef send_response(STK500V2_CommandTypeDef *Stk500Command,
                                        uint8_t Status, uint8_t *Data,
                                        size_t Len) {
@@ -228,6 +315,31 @@ USB_CommandStatusTypeDef send_response(STK500V2_CommandTypeDef *Stk500Command,
   }
 
   return USB_COMMAND_OK;
+}
+
+uint8_t poll_rdy_bsy(uint16_t TimeoutMs) {
+  HAL_StatusTypeDef hal_err;
+  uint32_t now = HAL_GetTick();
+  uint8_t tx_buf[] = CMD_PAYLOAD_RDY_BSY_POLL;
+  uint8_t rx_buf[sizeof(tx_buf)];
+
+  while (HAL_GetTick() - now < TimeoutMs) {
+    memset(rx_buf, 0, sizeof(rx_buf));
+
+    if ((hal_err = HAL_SPI_TransmitReceive(&gAppState.hspi1, tx_buf, rx_buf,
+                                           sizeof(tx_buf), 100)) != HAL_OK) {
+      return 1;
+    }
+
+    if (rx_buf[sizeof(rx_buf) - 1] & 0x01) {
+      HAL_Delay(1);
+      continue;
+    }
+
+    return 0;
+  }
+  // Timeout
+  return 1;
 }
 
 uint8_t generate_checksum(uint8_t *Buffer, uint16_t Len) {
@@ -345,37 +457,4 @@ void avr_disable_reset() {
   };
   // Reset into input mode pull-up
   HAL_GPIO_Init(GPIO_PORT_AVR_RESET, &gpio_conf);
-}
-
-uint8_t spi_multi(STK500V2_CommandTypeDef *Stk500Command, uint8_t *RxData,
-                  uint8_t *RxLen) {
-  STK500V2_CmdSPIMultiBodyTypeDef body;
-  body.CommandID = Stk500Command->MessageBody[0];
-  body.NumTx = Stk500Command->MessageBody[1];
-  body.NumRx = Stk500Command->MessageBody[2];
-  body.RxStartAddr = Stk500Command->MessageBody[3];
-  body.TxData = &(Stk500Command->MessageBody[4]);
-
-  uint8_t rx_data[255];
-
-  // Clear RxData buffer
-  memset(RxData, 0, 255);
-
-  HAL_StatusTypeDef hal_err;
-  if ((hal_err = HAL_SPI_TransmitReceive(&gAppState.hspi1, body.TxData, rx_data,
-                                         body.NumTx, 100)) != HAL_OK) {
-    return 1;
-  }
-
-  if (body.NumRx > 0) {
-    uint16_t end = (uint16_t)body.RxStartAddr + (uint16_t)body.NumRx;
-    if (end > body.NumTx)
-      // Received bytes count should never exceed tx bytes count
-      return 1;
-    memcpy(RxData, rx_data + body.RxStartAddr, body.NumRx);
-  }
-
-  *RxLen = body.NumRx;
-
-  return 0;
 }

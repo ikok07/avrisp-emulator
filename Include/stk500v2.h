@@ -73,6 +73,9 @@
 #define T_AVRISP                        271.27e-9 
 #define B_AVRISP                        12.0
 
+/* ── Command payloads ───────────────────────────────────────────── */
+#define CMD_PAYLOAD_RDY_BSY_POLL        {0xFF, 0x00, 0x00, 0x00}
+
 typedef struct {
     uint8_t SequenceNumber;
     uint16_t MessageSize;
@@ -93,6 +96,17 @@ typedef struct __packed {
     uint8_t Commands[4];                // Command bytes to be transmit
 } STK500V2_EnterProgModeBodyTypeDef;
 
+typedef struct __packed {
+    uint8_t CommandID;
+    uint8_t EraseDelay;                 // Delay (in ms) to ensure that the erase of the device is finished
+    uint8_t PollMethod;                 // Poll method, 0 = use delay 1 = use RDY/BSY command
+    uint8_t Commands[4];                // Command bytes to be transmit
+} STK500V2_ChipEraseBodyTypeDef;
+typedef struct __packed {
+    uint8_t CommandID;
+    uint8_t RetAddr;                    // Return address - indicates after which of the transmitted bytes on the SPI interface to store the return byte
+    uint8_t Commands[4];                // Command bytes to be transmit
+} STK500V2_ReadFuseBodyTypeDef;
 typedef struct {
     uint8_t CommandID;
     uint8_t NumTx;                      // Number of bytes to transmit
