@@ -9,8 +9,6 @@
 #define HW_VERSION                      0x01
 #define SW_MAJOR_VERSION                0x00
 #define SW_MINOR_VERSION                0x01
-// TODO: Read actual voltage via ADC
-#define VOLTAGE_TARGET                  50                  // Hard-coded 5V for now
 
 #define STK500V2_START_BYTE             (0x1B)
 #define STK500V2_TOKEN                  (0x0E)
@@ -29,8 +27,8 @@
 #define CMD_CHIP_ERASE_ISP              (0x12)
 #define CMD_PROGRAM_FLASH_ISP           (0x13)
 #define CMD_READ_FLASH_ISP              (0x14)
-#define CMD_PROGRAM_EEPROM_ISP          (0x15)
-#define CMD_READ_EEPROM_ISP             (0x16)
+#define CMD_PROGRAM_EEPROM_ISP          (0x15)  // TODO: To implement
+#define CMD_READ_EEPROM_ISP             (0x16)  // TODO: To implement
 #define CMD_PROGRAM_FUSE_ISP            (0x17)
 #define CMD_READ_FUSE_ISP               (0x18)
 #define CMD_PROGRAM_LOCK_ISP            (0x19)

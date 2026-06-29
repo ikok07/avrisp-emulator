@@ -28,4 +28,7 @@
 #define GPIO_PORT_USB_DP                    GPIOA
 #define GPIO_PIN_USB_DP                     GPIO_PIN_12
 
+#define GPIO_PORT_ADC_VTARGET               GPIOB
+#define GPIO_PIN_ADC_VTARGET                GPIO_PIN_1
+
 #endif /* INCLUDE_GPIO_DEFS */

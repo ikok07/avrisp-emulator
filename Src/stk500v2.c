@@ -1,9 +1,11 @@
 #include "stk500v2.h"
+#include "adc.h"
 #include "app_state.h"
 #include "gpio_defs.h"
 #include "ringbuf.h"
 #include "spi.h"
 #include "stm32f4xx_hal.h"
+#include "stm32f4xx_hal_adc.h"
 #include "stm32f4xx_hal_def.h"
 #include "stm32f4xx_hal_gpio.h"
 #include "stm32f4xx_hal_spi.h"
@@ -661,7 +663,7 @@ uint8_t validate_checksum(uint8_t *Buffer, uint16_t Len) {
   @returns Parameter value. (if parameter is unsupported, a zero is returned)
 */
 uint8_t get_parameter_value(uint8_t ParamID) {
-  if (ParamID <= PARAM_VTARGET) {
+  if (ParamID <= PARAM_SW_MINOR) {
     for (uint8_t i = 0;
          i < sizeof(Stk500V2_StaticParams) / sizeof(Stk500V2_StaticParams[0]);
          i++) {
@@ -669,6 +671,13 @@ uint8_t get_parameter_value(uint8_t ParamID) {
       if (pair.ParamID == ParamID) {
         return pair.Value;
       }
+    }
+  } else if (ParamID == PARAM_VTARGET) {
+    uint32_t millivolts;
+    HAL_StatusTypeDef hal_err;
+
+    if ((hal_err = ADC_GetMV(&millivolts)) == HAL_OK) {
+      return millivolts / 100;
     }
   } else if (ParamID == PARAM_SCK_DURATION) {
     if (gCurrentSckDuration == 0xFF) {

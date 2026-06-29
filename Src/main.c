@@ -1,13 +1,9 @@
-#include "app_state.h"
+#include "adc.h"
 #include "power.h"
 #include "spi.h"
-#include "stm32f401xc.h"
 #include "stm32f4xx_hal.h"
-#include "stm32f4xx_hal_spi.h"
 #include "usb.h"
-#include "usbd_cdc_if.h"
 #include "usbd_def.h"
-#include <stdint.h>
 
 int main() {
   HAL_StatusTypeDef hal_err;
@@ -28,6 +24,11 @@ int main() {
   }
 
   if ((hal_err = SPI_Init()) != HAL_OK) {
+    while (1)
+      ;
+  }
+
+  if ((hal_err = ADC_Init()) != HAL_OK) {
     while (1)
       ;
   }
