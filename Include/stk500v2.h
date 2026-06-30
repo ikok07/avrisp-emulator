@@ -27,8 +27,8 @@
 #define CMD_CHIP_ERASE_ISP              (0x12)
 #define CMD_PROGRAM_FLASH_ISP           (0x13)
 #define CMD_READ_FLASH_ISP              (0x14)
-#define CMD_PROGRAM_EEPROM_ISP          (0x15)  // TODO: To implement
-#define CMD_READ_EEPROM_ISP             (0x16)  // TODO: To implement
+#define CMD_PROGRAM_EEPROM_ISP          (0x15)
+#define CMD_READ_EEPROM_ISP             (0x16)
 #define CMD_PROGRAM_FUSE_ISP            (0x17)
 #define CMD_READ_FUSE_ISP               (0x18)
 #define CMD_PROGRAM_LOCK_ISP            (0x19)

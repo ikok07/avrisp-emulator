@@ -5,7 +5,6 @@
 #include "ringbuf.h"
 #include "spi.h"
 #include "stm32f4xx_hal.h"
-#include "stm32f4xx_hal_adc.h"
 #include "stm32f4xx_hal_def.h"
 #include "stm32f4xx_hal_gpio.h"
 #include "stm32f4xx_hal_spi.h"
@@ -33,9 +32,9 @@ static uint8_t read_fuse(STK500V2_CommandTypeDef *Stk500Command,
                          uint8_t *RxData);
 static uint8_t write_fuse(STK500V2_CommandTypeDef *Stk500Command);
 
-static uint8_t read_flash(STK500V2_CommandTypeDef *Stk500Command,
-                          uint8_t *Data);
-static uint8_t program_flash(STK500V2_CommandTypeDef *Stk500Command);
+static uint8_t read_memory(STK500V2_CommandTypeDef *Stk500Command,
+                           uint8_t *Data);
+static uint8_t program_memory(STK500V2_CommandTypeDef *Stk500Command);
 
 static uint8_t spi_multi(STK500V2_CommandTypeDef *Stk500Command,
                          uint8_t *RxData, uint8_t *RxLen);
@@ -46,7 +45,6 @@ send_response(STK500V2_CommandTypeDef *Stk500Command, uint8_t Status,
               uint8_t *Data, size_t Len);
 static uint8_t poll_rdy_bsy(uint16_t TimeoutMs);
 
-// TODO: Research eeprom support which has 2 poll values
 static uint8_t poll_value(uint8_t ReadCommand, uint16_t Address,
                           uint8_t PollValue, uint16_t TimeoutMs);
 
@@ -69,11 +67,13 @@ static uint8_t gCurrentSckDuration = DEFAULT_CLK_DURATION;
 static uint32_t gStk500Address = 0x00;
 static uint8_t gStk500ExtAddress = 0x00;
 
+// Whether the address represents a word or a single byte
+static uint8_t gWordAddressing = 0x00;
+
 STK500V2_ParamPairTypeDef Stk500V2_StaticParams[PARAMS_COUNT] = {
     {.ParamID = PARAM_HW_VER, .Value = HW_VERSION},
     {.ParamID = PARAM_SW_MAJOR, .Value = SW_MAJOR_VERSION},
     {.ParamID = PARAM_SW_MINOR, .Value = SW_MINOR_VERSION},
-    {.ParamID = PARAM_VTARGET, .Value = VOLTAGE_TARGET},
 };
 
 USB_CommandStatusTypeDef
@@ -158,8 +158,11 @@ STK500V2_HandleCmd(STK500V2_CommandTypeDef *Stk500Command) {
 
     status = send_response(Stk500Command, STATUS_CMD_OK, NULL, 0);
 
-  } else if (cmd_id == CMD_PROGRAM_FLASH_ISP) {
-    uint8_t rc = program_flash(Stk500Command);
+  } else if (cmd_id == CMD_PROGRAM_FLASH_ISP ||
+             cmd_id == CMD_PROGRAM_EEPROM_ISP) {
+
+    gWordAddressing = cmd_id == CMD_PROGRAM_FLASH_ISP;
+    uint8_t rc = program_memory(Stk500Command);
     uint8_t resp_status = rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK;
 
     if (rc == 2)
@@ -168,16 +171,20 @@ STK500V2_HandleCmd(STK500V2_CommandTypeDef *Stk500Command) {
       resp_status = STATUS_RDY_BSY_TOUT;
 
     status = send_response(Stk500Command, resp_status, NULL, 0);
-  } else if (cmd_id == CMD_READ_FLASH_ISP) {
+
+  } else if (cmd_id == CMD_READ_FLASH_ISP || cmd_id == CMD_READ_EEPROM_ISP) {
+
+    gWordAddressing = cmd_id == CMD_READ_FLASH_ISP;
     uint16_t data_len =
         (Stk500Command->MessageBody[1] << 8) | Stk500Command->MessageBody[2];
     uint8_t data[data_len + 1];
-    uint8_t rc = read_flash(Stk500Command, data);
+    uint8_t rc = read_memory(Stk500Command, data);
     // Protocol requires a second status byte which is always OK.
     data[data_len] = STATUS_CMD_OK;
     status =
         send_response(Stk500Command, rc > 0 ? STATUS_CMD_FAILED : STATUS_CMD_OK,
                       data, data_len);
+
   } else if (cmd_id == CMD_SPI_MULTI) {
 
     uint8_t rx_data[255];
@@ -219,7 +226,7 @@ STK500V2_ParseCmd(ringbuf_t RingBuffer,
   cmd.MessageSize = (header[2] << 8) | header[3];
   cmd.Token = header[4];
 
-  // After we know the whole command size we can validate the whole command
+  // After we know the total size we can validate the whole command
   uint16_t cmd_total_size =
       cmd.MessageSize + MIN_COMMAND_SIZE + 1; // Account for the checksum byte
   if (len < cmd_total_size) {
@@ -346,7 +353,7 @@ uint8_t write_fuse(STK500V2_CommandTypeDef *Stk500Command) {
   return 0;
 }
 
-uint8_t read_flash(STK500V2_CommandTypeDef *Stk500Command, uint8_t *Data) {
+uint8_t read_memory(STK500V2_CommandTypeDef *Stk500Command, uint8_t *Data) {
   HAL_StatusTypeDef hal_err = HAL_OK;
   uint16_t num_bytes =
       (Stk500Command->MessageBody[1] << 8) | Stk500Command->MessageBody[2];
@@ -370,7 +377,8 @@ uint8_t read_flash(STK500V2_CommandTypeDef *Stk500Command, uint8_t *Data) {
 
   uint8_t rx_buf[num_bytes];
   uint16_t rx_buf_idx = 0;
-  for (uint16_t i = 0; i < num_bytes; i += 2) {
+  for (uint16_t i = 0; i < num_bytes;
+       i += gWordAddressing ? AVR_WORD_SIZE_BYTES : 1) {
     uint8_t tx[4] = {
         cmd_read_low,
         (gStk500Address >> 8) & 0xFF, // HIGH Address byte
@@ -387,25 +395,28 @@ uint8_t read_flash(STK500V2_CommandTypeDef *Stk500Command, uint8_t *Data) {
 
     rx_buf[rx_buf_idx++] = rx[3];
 
-    // Get HIGH byte
-    tx[0] = cmd_read_high;
-    if ((hal_err = HAL_SPI_TransmitReceive(&gAppState.hspi1, tx, rx, sizeof(tx),
-                                           100)) != HAL_OK) {
-      return 1;
+    // For FLASH reads we must also read the high byte from the word
+    if (gWordAddressing) {
+      // Get HIGH byte
+      tx[0] = cmd_read_high;
+      if ((hal_err = HAL_SPI_TransmitReceive(&gAppState.hspi1, tx, rx,
+                                             sizeof(tx), 100)) != HAL_OK) {
+        return 1;
+      }
+
+      // Copy received byte from flash
+      rx_buf[rx_buf_idx++] = rx[3];
     }
 
     // Increment word address
     gStk500Address++;
-
-    // Copy received byte from flash
-    rx_buf[rx_buf_idx++] = rx[3];
   }
 
   memcpy(Data, rx_buf, num_bytes);
   return 0;
 }
 
-uint8_t program_flash(STK500V2_CommandTypeDef *Stk500Command) {
+uint8_t program_memory(STK500V2_CommandTypeDef *Stk500Command) {
   STK500V2_CmdProgramFLASHBodyTypeDef body;
   body.CommandID = Stk500Command->MessageBody[0];
   body.NumBytes =
@@ -446,7 +457,8 @@ uint8_t program_flash(STK500V2_CommandTypeDef *Stk500Command) {
 
   HAL_StatusTypeDef hal_err;
   uint16_t page_addr = gStk500Address;
-  for (uint16_t i = 0; i < body.NumBytes; i += 2) {
+  for (uint16_t i = 0; i < body.NumBytes;
+       i += gWordAddressing ? AVR_WORD_SIZE_BYTES : 1) {
     uint8_t data_low = body.Data[i];
     uint8_t data_high = body.Data[i + 1];
     uint8_t data[4] = {
@@ -462,12 +474,16 @@ uint8_t program_flash(STK500V2_CommandTypeDef *Stk500Command) {
       return 1;
     }
 
-    // Transmit HIGH
-    data[0] = body.CmdLoadProgramMemory | 0x08; // Convert to HIGH byte command
-    data[3] = data_high;
-    if ((hal_err = HAL_SPI_Transmit(&gAppState.hspi1, data, sizeof(data),
-                                    100)) != HAL_OK) {
-      return 1;
+    // For FLASH reads we must also write the high byte to the word
+    if (gWordAddressing) {
+      // Transmit HIGH
+      data[0] =
+          body.CmdLoadProgramMemory | 0x08; // Convert to HIGH byte command
+      data[3] = data_high;
+      if ((hal_err = HAL_SPI_Transmit(&gAppState.hspi1, data, sizeof(data),
+                                      100)) != HAL_OK) {
+        return 1;
+      }
     }
 
     if (!body.Mode.PageModeEnabled) {
