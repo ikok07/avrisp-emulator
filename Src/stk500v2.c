@@ -284,6 +284,12 @@ uint8_t enter_prog_mode(STK500V2_CommandTypeDef *Stk500Command) {
       success = 1;
       break;
     }
+
+    // Refresh RESET line
+    avr_disable_reset();
+    HAL_Delay(body.StabDelay);
+    avr_enable_reset();
+    HAL_Delay(body.StabDelay);
   }
 
   if (!success)
