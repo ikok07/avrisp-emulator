@@ -3,6 +3,9 @@
 
 #include "stm32f4xx_hal.h"
 
+#define GPIO_PORT_DEBUG_ENABLE GPIOA
+#define GPIO_PIN_DEBUG_ENABLE GPIO_PIN_2
+
 #define GPIO_PORT_ERR_LED GPIOA
 #define GPIO_PIN_ERR_LED GPIO_PIN_3
 
