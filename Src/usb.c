@@ -1,5 +1,6 @@
 #include "usb.h"
 #include "app_state.h"
+#include "error.h"
 #include "nvic_defs.h"
 #include "ringbuf.h"
 #include "stk500v2.h"
@@ -40,7 +41,7 @@ USBD_StatusTypeDef USB_Init() {
   // Initialize ring buffer
   gAppState.husb.RxBuffer = ringbuf_new(USB_RX_RING_BUFFER_SIZE);
   if (gAppState.husb.RxBuffer == 0) {
-    // TODO: Add some error handling...
+    ERROR_Fatal();
     return USBD_FAIL;
   }
 
@@ -64,20 +65,20 @@ void USB_MessageHandler() {
     if (status == USB_COMMAND_OK) {
       status = STK500V2_HandleCmd(&cmd);
       if (status != USB_COMMAND_OK) {
-        // TODO: Add some error handling...
+        ERROR_Trigger(1000);
       }
     }
   }
 }
 
-void CDC_CB_Connected() {
-  uint8_t test = 1;
-  (void)test;
-}
-void CDC_CB_Disconnected() {
-  uint8_t test = 1;
-  (void)test;
-}
+// void CDC_CB_Connected() {
+//   uint8_t test = 1;
+//   (void)test;
+// }
+// void CDC_CB_Disconnected() {
+//   uint8_t test = 1;
+//   (void)test;
+// }
 
 void CDC_CB_DataReceived(uint8_t *Buf, uint32_t *Len) {
   if (*Len == 0)
