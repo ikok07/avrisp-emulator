@@ -6,7 +6,7 @@ A firmware implementation of the **AVRISP mkII** programmer for the **STM32F401*
 
 ---
 
-![Breadboard setup](docs/demo.jpg)
+![Breadboard setup](docs/demo.jpeg)
 
 ---
 
